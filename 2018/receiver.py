@@ -1,10 +1,11 @@
 # Written by S. Mevawala, modified by D. Gitzel
 
 import logging
-
+import socket
 import channelsimulator
 import utils
-
+import sys
+import hashlib
 
 class Receiver(object):
 
@@ -22,22 +23,31 @@ class Receiver(object):
         raise NotImplementedError("The base API class has no implementation. Please override and add your own.")
 
 
-class BogoReceiver(Receiver):
-    ACK_DATA = bytes(123)
+class SupReceiver(Receiver):
+    PACK_SIZE = 4
+    WIN_SIZE = 5
 
-    def __init__(self):
-        super(BogoReceiver, self).__init__()
+    def __init__(self, timeout=1):
+        super(SupReceiver, self).__init__(timeout=timeout)
 
     def receive(self):
         self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
+        recd = set()
         while True:
-            data = self.simulator.get_from_socket()  # receive data
-            self.logger.info("Got data from socket: {}".format(
-                data.decode('ascii')))  # note that ASCII will only decode bytes in the range 0-127
-            self.simulator.put_to_socket(BogoReceiver.ACK_DATA)  # send ACK
+            try:
+                data = self.simulator.get_from_socket()
+                self.logger.info("Got data from socket: {}".format(data[1:-16].decode('ascii')))
+                checksum = hashlib.md5(str(data[1:-16])).digest()
+                if checksum == str(data[-16:]) and checksum not in recd:
+                    sys.stdout.write(data[1:-16])
+                    toresp = bytearray([data[0],1])
+                    toresp += bytearray(hashlib.md5(str(toresp)).digest())
+                    recd.add(checksum)
+                    self.simulator.put_to_socket(toresp)
+            except socket.timeout:
+                return
 
 
 if __name__ == "__main__":
-    # test out BogoReceiver
-    rcvr = BogoReceiver()
+    rcvr = SupReceiver()
     rcvr.receive()

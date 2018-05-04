@@ -11,7 +11,7 @@ import struct
 class Receiver(object):
 
     def __init__(self, inbound_port=50005, outbound_port=50006, timeout=10, debug_level=logging.INFO):
-        self.logger = utils.Logger(self.__class__.__name__, debug_level)
+        #self.logger = utils.Logger(self.__class__.__name__, debug_level)
 
         self.inbound_port = inbound_port
         self.outbound_port = outbound_port
@@ -26,25 +26,27 @@ class Receiver(object):
 
 class SupReceiver(Receiver):
 
-    def __init__(self, timeout=10):
+    def __init__(self, timeout=.1):
         super(SupReceiver, self).__init__(timeout=timeout)
 
     def receive(self):
-        self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
+        #self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
         recd = set()
         while True:
             try:
-                data = self.simulator.get_from_socket()
-                self.logger.info("Got data from socket: {}".format(data[8:-16].decode('ascii')))
-                checksum = hashlib.md5(str(data[8:-16])).digest()
+                data = self.simulator.u_receive()
+                #self.logger.info("Got data from socket: {}".format(data[16:-16].decode('ascii')))
+                checksum = hashlib.md5(str(data[:-16])).digest()
                 if checksum == str(data[-16:]) and checksum not in recd:
-                    sys.stdout.write(data[8:-16])
+                    sys.stdout.write(data[16:-16])
                     toresp = bytearray(data[:8])
                     toresp += bytearray(hashlib.md5(str(toresp)).digest())
                     recd.add(checksum)
-                    self.simulator.put_to_socket(toresp)
+                    self.simulator.u_send(toresp)
+                    if data[0:8] == data[8:16]:
+                        return
             except socket.timeout:
-                return
+                pass
 
 
 if __name__ == "__main__":

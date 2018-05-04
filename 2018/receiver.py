@@ -6,6 +6,7 @@ import channelsimulator
 import utils
 import sys
 import hashlib
+import struct
 
 class Receiver(object):
 
@@ -24,10 +25,8 @@ class Receiver(object):
 
 
 class SupReceiver(Receiver):
-    PACK_SIZE = 4
-    WIN_SIZE = 5
 
-    def __init__(self, timeout=1):
+    def __init__(self, timeout=10):
         super(SupReceiver, self).__init__(timeout=timeout)
 
     def receive(self):
@@ -36,11 +35,11 @@ class SupReceiver(Receiver):
         while True:
             try:
                 data = self.simulator.get_from_socket()
-                self.logger.info("Got data from socket: {}".format(data[1:-16].decode('ascii')))
-                checksum = hashlib.md5(str(data[1:-16])).digest()
+                self.logger.info("Got data from socket: {}".format(data[8:-16].decode('ascii')))
+                checksum = hashlib.md5(str(data[8:-16])).digest()
                 if checksum == str(data[-16:]) and checksum not in recd:
-                    sys.stdout.write(data[1:-16])
-                    toresp = bytearray([data[0],1])
+                    sys.stdout.write(data[8:-16])
+                    toresp = bytearray(data[:8])
                     toresp += bytearray(hashlib.md5(str(toresp)).digest())
                     recd.add(checksum)
                     self.simulator.put_to_socket(toresp)

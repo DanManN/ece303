@@ -6,6 +6,7 @@ import channelsimulator
 import utils
 import sys
 import hashlib
+import struct
 
 class Sender(object):
 
@@ -24,20 +25,20 @@ class Sender(object):
 
 def chunk(l, n):
     n = max(1, n)
-    return [bytearray([i/n]) + bytearray(l[i:i+n]) + bytearray(hashlib.md5(str(l[i:i+n])).digest()) for i in xrange(0, len(l), n)]
+    return [bytearray(struct.pack(">Q",i/n)) + bytearray(l[i:i+n]) + bytearray(hashlib.md5(str(l[i:i+n])).digest()) for i in xrange(0, len(l), n)]
 
 class SupSender(Sender):
-    PACK_SIZE = 4
+    PACK_SIZE = 1000 # it is actually 1024 because of header (8) + checksum (16)
     WIN_SIZE = 5
 
-    def __init__(self, timeout=1):
+    def __init__(self, timeout=10):
         super(SupSender, self).__init__(timeout=timeout)
 
     def send(self, data):
         self.logger.info("Sending on port: {} and waiting for ACK on port: {}".format(self.outbound_port, self.inbound_port))
         chunks = chunk(data,SupSender.PACK_SIZE)
         cc = 0
-        lca = 0
+        acked = 0
         nacked = set()
         while True:
             try:
@@ -55,17 +56,17 @@ class SupSender(Sender):
 
                 # wait for acks/naks
                 for i in xrange(SupSender.WIN_SIZE):
-                    if lca == len(chunks) - 1:
+                    if acked == len(chunks):
                         self.logger.info("DONE")
                         return
                     resp = self.simulator.get_from_socket()
-                    self.logger.info("Got RESPONSE from socket: {},{}".format(resp[0],resp[1]))
-                    checksum = hashlib.md5(str(resp[0:-16])).digest()
+                    respnum = struct.unpack(">Q",str(resp[:-16]))[0]
+                    self.logger.info("Got RESPONSE from socket: {}".format(respnum))
+                    checksum = hashlib.md5(str(resp[:-16])).digest()
                     if checksum == str(resp[-16:]):
-                        if resp[1] == 1:
-                            nacked -= set([resp[0]])
-                            if resp[0] == lca+1:
-                                lca = resp[0]
+                        if respnum in nacked:
+                            nacked.remove(respnum)
+                            acked += 1
 
             except socket.timeout:
                 pass

@@ -1,5 +1,8 @@
-import hashlib
+import binascii
+import struct
+import random
 
-def checksum_md5(data):
-    md5 = hashlib.md5(data)
-    return md5.digest()
+def mychecksum(data):
+    # random.seed(str(data))
+    # return struct.pack(">I",random.getrandbits(32))
+    return struct.pack(">I",binascii.crc32(data) & 0xffffffff)

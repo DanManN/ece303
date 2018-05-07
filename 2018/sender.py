@@ -5,7 +5,7 @@ import socket
 import channelsimulator
 import utils
 import sys
-from myhash import checksum_md5
+from myhash import mychecksum
 import struct
 
 class Sender(object):
@@ -26,11 +26,11 @@ class Sender(object):
 def chunk(l, n):
     n = max(1, n)
     lp = bytearray(struct.pack(">Q",len(l)/n))
-    return [bytearray(struct.pack(">Q",i/n)) + lp + bytearray(l[i:i+n]) + bytearray(checksum_md5(str(bytearray(struct.pack(">Q",i/n)))+str(lp)+str(l[i:i+n]))) for i in xrange(0, len(l), n)]
+    return [bytearray(struct.pack(">Q",i/n)) + lp + bytearray(l[i:i+n]) + bytearray(mychecksum(bytearray(struct.pack(">Q",i/n))+str(lp)+str(l[i:i+n]))) for i in xrange(0, len(l), n)]
 
 class SupSender(Sender):
-    PACK_SIZE = 1024*128-32 # it is actually 1024 because of header (16) + checksum (16)
-    WIN_SIZE = 3
+    PACK_SIZE = 1024*64-20 # it is actually 1024 because of header (16) + checksum (4)
+    WIN_SIZE = 8
 
     def __init__(self, timeout=.1):
         super(SupSender, self).__init__(timeout=timeout)
@@ -62,9 +62,9 @@ class SupSender(Sender):
                         return
                     resp = self.simulator.u_receive()
                     #self.logger.info("Got RESPONSE from socket: {}".format(respnum))
-                    checksum = checksum_md5(str(resp[:-16]))
-                    if checksum == str(resp[-16:]):
-                        respnum = struct.unpack(">Q",str(resp[:-16]))[0]
+                    checksum = mychecksum(str(resp[:-4]))
+                    if checksum == str(resp[-4:]):
+                        respnum = struct.unpack(">Q",str(resp[:-4]))[0]
                         if respnum in nacked:
                             nacked.remove(respnum)
                             acked += 1

@@ -5,7 +5,7 @@ import socket
 import channelsimulator
 import utils
 import sys
-from myhash import checksum_md5
+from myhash import mychecksum
 import struct
 
 class Receiver(object):
@@ -25,8 +25,8 @@ class Receiver(object):
 
 
 class SupReceiver(Receiver):
-    PACK_SIZE = 1024*128-32
-    BUF_SIZE = 3
+    PACK_SIZE = 1024*64-20
+    BUF_SIZE = 32
 
     def __init__(self, timeout=.1):
         super(SupReceiver, self).__init__(timeout=timeout)
@@ -51,24 +51,26 @@ class SupReceiver(Receiver):
                     cc += 1
                     data = self.getFromChannel()
                     #self.logger.info("Got data from socket: {}".format(len(data)))
-                    checksum = checksum_md5(str(data[:-16]))
-                    if checksum == str(data[-16:]):
+                    checksum = mychecksum(str(data[:-4]))
+                    if checksum == str(data[-4:]):
                         cp = struct.unpack(">Q",str(data[:8]))[0]
                         self.logger.info("current packet {} and ll {}".format(cp,ll))
                         if cp <= SupReceiver.BUF_SIZE + ll:
-                            try:
-                                buf[cp-ll-1] = data[:-16]
-                            except IndexError:
-                                pass
+                            ind = cp-ll-1
+                            if ind >= 0 and ind < SupReceiver.BUF_SIZE:
+                                buf[ind] = data[:-4]
                                 #self.logger.info("buf: {} , cp: {}, ll: {}\ndata: {}".format(len(buf),cp,ll,data))
                             toresp = bytearray(data[:8])
-                            toresp += bytearray(checksum_md5(str(toresp)))
+                            toresp += bytearray(mychecksum(str(toresp)))
                             self.simulator.u_send(toresp)
 
                 cc = 0
-                self.logger.info("llB: {}".format(ll))
+                # self.logger.info("llB: {}".format(ll))
                 for i in xrange(SupReceiver.BUF_SIZE):
                     if buf[i]:
+                        #sys.stdout.write('Packet: ')
+                        #sys.stdout.write(str(struct.unpack(">Q",buf[i][0:8])[0]))
+                        #sys.stdout.write('\n')
                         sys.stdout.write(buf[i][16:])
                         ll += 1
                         if buf[i][0:8] == buf[i][8:16]:
@@ -78,9 +80,9 @@ class SupReceiver(Receiver):
                     else:
                         buf = buf[i:]
                         buf += [None]*(SupReceiver.BUF_SIZE-len(buf))
-                        self.logger.info("BUF LEN: {}".format(len(buf)))
+                        # self.logger.info("BUF LEN: {}".format(len(buf)))
                         break
-                self.logger.info("llA: {}".format(ll))
+                # self.logger.info("llA: {}".format(ll))
 
             except socket.timeout:
                 pass

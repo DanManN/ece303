@@ -28,7 +28,7 @@ class SupReceiver(Receiver):
     PACK_SIZE = 1024*64-20
     BUF_SIZE = 32
 
-    def __init__(self, timeout=.1):
+    def __init__(self, timeout=.01):
         super(SupReceiver, self).__init__(timeout=timeout)
 
     def getFromChannel(self):

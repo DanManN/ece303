@@ -32,7 +32,7 @@ class SupSender(Sender):
     PACK_SIZE = 1024*64-20 # it is actually 1024 because of header (16) + checksum (4)
     WIN_SIZE = 8
 
-    def __init__(self, timeout=.1):
+    def __init__(self, timeout=.01):
         super(SupSender, self).__init__(timeout=timeout)
 
     def send(self, data):

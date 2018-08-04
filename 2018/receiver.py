@@ -1,10 +1,12 @@
 # Written by S. Mevawala, modified by D. Gitzel
 
 import logging
-
+import socket
 import channelsimulator
 import utils
-
+import sys
+from myhash import mychecksum
+import struct
 
 class Receiver(object):
 
@@ -22,22 +24,70 @@ class Receiver(object):
         raise NotImplementedError("The base API class has no implementation. Please override and add your own.")
 
 
-class BogoReceiver(Receiver):
-    ACK_DATA = bytes(123)
+class SupReceiver(Receiver):
+    PACK_SIZE = 1024*64-20
+    BUF_SIZE = 32
 
-    def __init__(self):
-        super(BogoReceiver, self).__init__()
+    def __init__(self, timeout=.01):
+        super(SupReceiver, self).__init__(timeout=timeout)
+
+    def getFromChannel(self):
+        packet = bytearray()
+        while len(packet)<SupReceiver.PACK_SIZE:
+            p = self.simulator.u_receive()
+            packet += p
+            if len(p) < 1024:
+                break
+        return packet
 
     def receive(self):
-        self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
+        #self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
+        ll = -1
+        buf = [None]*SupReceiver.BUF_SIZE
+        cc = 0
         while True:
-            data = self.simulator.get_from_socket()  # receive data
-            self.logger.info("Got data from socket: {}".format(
-                data.decode('ascii')))  # note that ASCII will only decode bytes in the range 0-127
-            self.simulator.put_to_socket(BogoReceiver.ACK_DATA)  # send ACK
+            try:
+                while cc < SupReceiver.BUF_SIZE:
+                    cc += 1
+                    data = self.getFromChannel()
+                    #self.logger.info("Got data from socket: {}".format(len(data)))
+                    checksum = mychecksum(str(data[:-4]))
+                    if checksum == str(data[-4:]):
+                        cp = struct.unpack(">Q",str(data[:8]))[0]
+                        self.logger.info("current packet {} and ll {}".format(cp,ll))
+                        if cp <= SupReceiver.BUF_SIZE + ll:
+                            ind = cp-ll-1
+                            if ind >= 0 and ind < SupReceiver.BUF_SIZE:
+                                buf[ind] = data[:-4]
+                                #self.logger.info("buf: {} , cp: {}, ll: {}\ndata: {}".format(len(buf),cp,ll,data))
+                            toresp = bytearray(data[:8])
+                            toresp += bytearray(mychecksum(str(toresp)))
+                            self.simulator.u_send(toresp)
+
+                cc = 0
+                # self.logger.info("llB: {}".format(ll))
+                for i in xrange(SupReceiver.BUF_SIZE):
+                    if buf[i]:
+                        #sys.stdout.write('Packet: ')
+                        #sys.stdout.write(str(struct.unpack(">Q",buf[i][0:8])[0]))
+                        #sys.stdout.write('\n')
+                        sys.stdout.write(buf[i][16:])
+                        ll += 1
+                        if buf[i][0:8] == buf[i][8:16]:
+                            return
+                        if i == SupReceiver.BUF_SIZE-1:
+                            buf = [None]*SupReceiver.BUF_SIZE
+                    else:
+                        buf = buf[i:]
+                        buf += [None]*(SupReceiver.BUF_SIZE-len(buf))
+                        # self.logger.info("BUF LEN: {}".format(len(buf)))
+                        break
+                # self.logger.info("llA: {}".format(ll))
+
+            except socket.timeout:
+                pass
 
 
 if __name__ == "__main__":
-    # test out BogoReceiver
-    rcvr = BogoReceiver()
+    rcvr = SupReceiver()
     rcvr.receive()

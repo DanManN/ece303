@@ -166,7 +166,7 @@ class ChannelSimulator(object):
 
         # split data into 1024 byte frames
         for frame in slice_frames(data_bytes):
-            corrupted = self.corrupt(frame)
+            corrupted = self.corrupt(frame, drop_error_prob=0.005, random_error_prob=0.005, swap_error_prob=0.005)
             # put corrupted frame into socket if it wasn't dropped
             if corrupted:
                 self.put_to_socket(corrupted)
